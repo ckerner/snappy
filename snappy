@@ -1,0 +1,229 @@
+#!/usr/local/bin/python
+
+from subprocess import Popen, PIPE
+import logging
+import sys
+import re
+import os
+import shlex
+import sqlite3
+import argparse
+import configparser
+from datetime import datetime , date
+
+
+MMLSSNAP = "/usr/lpp/mmfs/bin/mmlssnapshot"
+MMCRSNAP = "/usr/lpp/mmfs/bin/mmcrsnapshot"
+MMDELSNAP = "/usr/lpp/mmfs/bin/mmdelsnapshot"
+
+LOG_FILENAME = { 'h' : '/var/adm/ras/snap_hourly.log',
+                 'd' : '/var/adm/ras/snap_daily.log',
+                 'w' : '/var/adm/ras/snap_weekly.log',
+                 'm' : '/var/adm/ras/snap_monthly.log',
+                 'q' : '/var/adm/ras/snap_quarterly.log',
+                 'y' : '/var/adm/ras/snap_yearly.log', 
+                 '0' : '/var/adm/ras/snap_monday.log',
+                 '1' : '/var/adm/ras/snap_tuesday.log',
+                 '2' : '/var/adm/ras/snap_wednesday.log',
+                 '3' : '/var/adm/ras/snap_thursday.log',
+                 '4' : '/var/adm/ras/snap_friday.log',
+                 '5' : '/var/adm/ras/snap_saturday.log',
+                 '6' : '/var/adm/ras/snap_sunday.log',
+               }
+
+SNAP_FREQUENCY = { 'h' : 'Hourly',    'd' : 'Daily',
+                   'w' : 'Weekly',    'm' : 'Monthly',
+                   'q' : 'Quarterly', 'y' : 'Yearly',
+                   '0' : 'Monday',    '1' : 'Tuesday',   
+                   '2' : 'Wednesday', '3' : 'Thursday',  
+                   '4' : 'Friday',    '5' : 'Saturday',  
+                   '6' : 'Sunday' 
+                 }
+
+
+class snapGPFS():
+    def __init__( self, gpfsdev, mountpt ):
+        self.gpfsdev = gpfsdev
+        self.mountpt = mountpt
+        self.nosnap = does_file_exist( mountpt+'/.NOSNAP' )
+        self.config = configparser.ConfigParser()
+
+
+
+
+def run_cmd(cmdstr=None):
+    """
+    Wrapper around subprocess module calls.
+    """
+    if not cmdstr:
+        return None
+    cmd = shlex.split(cmdstr)
+    logging.debug( "about to run cmd '{0}'".format( cmd ) )
+    subp = Popen(cmd, stdout=PIPE, stderr=PIPE)
+    (outdata, errdata) = subp.communicate()
+    if subp.returncode != 0:
+        msg = "Error running cmd '{0}: {1}'".format(cmdstr,errdata)
+        logging.error( msg )
+        raise UserWarning( msg )
+    logging.debug( "cmd completed '{0}'".format( cmd ) )
+    return( outdata.rstrip() )
+
+
+def parse_options():
+    global parser 
+    parser = argparse.ArgumentParser(
+       prog = 'snappy',
+       description = 'Spectrum Scale Snapshot Wrapper',
+       epilog = 'This requires GPFS to be installed in the default location.'
+    )
+    parser.add_argument('--cron', dest='cron', action='store_const', const='h',
+                        help='Generate the crontab entries to run all of the snapshots.')
+    parser.add_argument('--hourly', dest='snap_freq', action='store_const', const='h',
+                        help='Generate HOURLY snapshots.')
+    parser.add_argument('--daily', dest='snap_freq', action='store_const', const='d',
+                        help='Generate DAILY snapshots.')
+    parser.add_argument('--dow', dest='snap_freq', action='store_const', const='dow',
+                        help='Generate DAY OF WEEK snapshots.')
+    parser.add_argument('--weekly', dest='snap_freq', action='store_const', const='w',
+                        help='Generate WEEKLY snapshots.')
+    parser.add_argument('--monthly', dest='snap_freq', action='store_const', const='m',
+                        help='Generate MONTHLY snapshots.')
+    parser.add_argument('--quarterly', dest='snap_freq', action='store_const', const='q',
+                        help='Generate QUARTERLY snapshots.')
+    parser.add_argument('--yearly', dest='snap_freq', action='store_const', const='y',
+                        help='Generate YEARLY snapshots.')
+    parser.add_argument('-v','--verbose', dest='verbose', action='store_true', default=False,
+                        help='Toggle Verbose Mode. DEFAULT: %(default)s')
+    parser.add_argument('-d','--debug', dest='debug', action='store_true', default=False,
+                        help='Toggle Debug Mode. DEFAULT: %(default)s')
+    parser.add_argument('-n', dest='dryrun', action='store_true', default=False,
+                        help='Do not actually run, but log what would be done. Implies debug option. DEFAULT: %(default)s')
+    args = parser.parse_args()
+    if args.dryrun:
+        args.debug = True
+    return args
+
+
+def setup_logging():
+   if args.debug:
+      loglvl = logging.DEBUG
+   else:
+      loglvl = logging.INFO
+ 
+   logging.basicConfig( level = loglvl,
+                    format = '%(asctime)s %(levelname)s %(funcName)s:%(lineno)s %(message)s',
+                    datefmt = '%Y%m%d_%H%M%S',
+                    filename = LOG_FILENAME[args.snap_freq] )
+
+
+def get_gpfs_mount_list():
+    """
+    Utilize the system mount command to get a list of mounted gpfs file systems.
+    Returns the gpfs device and the mount location.
+    """
+    mounts = {}
+    gpfs_mounts = run_cmd("mount -t gpfs")
+    
+    for mount in gpfs_mounts.split('\n'):
+        mount = mount.rstrip()
+        if len(mount) > 1:
+           if args.debug:
+              print("- {}".format(mount))
+           device = mount.split()[0]
+           sysmnt = mount.split()[2]
+           mounts[device] = sysmnt
+    if args.debug:
+       print mounts
+    return mounts
+
+
+def generate_crontab():
+    """
+    Generate all of the crontab entries for this utility to run.  
+    """
+    #script_path = os.path.dirname(os.path.abspath(__file__))
+    script_path = os.path.abspath(__file__)
+
+    print("# Perform SpectrumScale hourly Snapshots")
+    print("00 * * * * {} --hourly\n".format(script_path))
+    print("# Perform SpectrumScale daily Snapshots")
+    print("02 00 * * * {} --daily\n".format(script_path))
+    print("# Perform SpectrumScale weekly Snapshots")
+    print("02 00 * * * {} --weekly\n".format(script_path))
+    print("# Perform SpectrumScale monthly Snapshots")
+    print("02 00 * * * {} --monthly\n".format(script_path))
+    print("# Perform SpectrumScale quarterly Snapshots")
+    print("02 00 * * * {} --quarterly\n".format(script_path))
+    print("# Perform SpectrumScale yearly Snapshots")
+    print("02 00 * * * {} --yearly\n".format(script_path))
+    print("# Perform SpectrumScale Weekday Snapshots")
+    print("02 00 * * * {} --dow\n".format(script_path))
+
+
+def does_file_exist( fqpn ):
+    """
+    Check to see if the fully qualified filename exists.
+    """
+    file_exist = os.path.isfile( fqpn )
+    return file_exist
+
+
+def create_default_snap_file( fqpn ):
+    config = configparser.ConfigParser()
+    config['snapshot'] = {}
+    config['snapshot']['Type'] = 'daily'
+    config['snapshot']['Versions'] = 30
+    with open( fqpn, 'w' ) as configfile:
+         config.write( configfile )
+
+
+def read_config_file( fqpn ):
+    config = configparser.ConfigParser()
+    config.read( fqpn )
+    return config
+    
+ 
+if __name__ == "__main__":
+   args = parse_options()
+
+   if args.cron:
+      generate_crontab()
+
+   my_mounts = get_gpfs_mount_list()
+
+   for gpfsdev in sorted( my_mounts ):
+       print("Key: {}   Value: {}".format( gpfsdev, my_mounts[gpfsdev] ))
+       check_for_nosnap( my_mounts[gpfsdev] )
+
+
+
+for each gpfsdev:
+    check for .snap / .nosnap
+
+    if .nosnap
+       skip processing
+
+    if .snap
+       check for type:
+          if right type:
+             check to see if too many versions
+             if yes
+                purge
+             snapshot
+
+    if no .snap or .nosnap
+       create default .snap file ( daily with 30 versions )
+       check for type:
+          if right type:
+             check to see if too many versions
+             if yes
+                purge
+             snapshot
+
+    get file set listing
+    for each fileset in gpfsdev
+        check for .snap in junction point
+
+
+
+
