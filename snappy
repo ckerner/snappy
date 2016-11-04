@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/local/bin/python
 #=====================================================================================
 # Chad Kerner, Systems Engineer
 # Storage Enabling Technologies
@@ -64,6 +64,9 @@ SNAP_FREQUENCY = { 'h' : 'Hourly',    'd' : 'Daily',
                  }
 
 def parse_options():
+    """
+    Parse the command line options.
+    """
     global parser
     parser = argparse.ArgumentParser(
        prog = 'snappy',
@@ -106,6 +109,9 @@ def parse_options():
 
 
 def setup_logging():
+   """
+   Configure how logging is going to be done.  DEBUG is very verbose.
+   """
    if args.debug:
       loglvl = logging.DEBUG
    else:
@@ -127,7 +133,6 @@ def generate_crontab():
     """
     Generate all of the crontab entries for this utility to run.
     """
-    #script_path = os.path.dirname(os.path.abspath(__file__))
     script_path = os.path.abspath(__file__)
 
     print("# Perform SpectrumScale hourly Snapshots")
@@ -168,20 +173,27 @@ def does_file_exist( fqpn ):
 
 
 def filesystem_snapshot( myFS, cfg ):
+    """
+    Generate a snapshot for the file system.
+    """
     logging.info("    Snapshot Type: {}   Frequence: {}   Versions: {}   Active: {}".format( 
            cfg.get('DEFAULT', 'snaptype'), 
            cfg.get('DEFAULT', 'frequency'), 
            cfg.get('DEFAULT', 'versions'), 
            cfg.get('DEFAULT', 'active') ) )
 
-    # Snapshots at the filesystem level are not active for this file system
+    # If snapshots at the filesystem level are not active for this file system, return.
     if cfg.get('DEFAULT', 'active') == 'False':
        return
 
+    # Collect the snapshot information
     mySnap = Snapshots( myFS.gpfsdev )
 
+    # Create a new snapshot.
     mySnap.snap()
 
+    # This will collect a list of snapthots that need to be purged based on how many are
+    # specified in the retention policy and then purge the expired ones.
     for oldSnap in mySnap.get_delete_list( int(cfg.get('DEFAULT', 'versions')) ):
         logging.info("Removing Snapshot: {} {}".format( myFS.gpfsdev, oldSnap ))
         if not args.dryrun:
@@ -189,6 +201,11 @@ def filesystem_snapshot( myFS, cfg ):
 
 
 def fileset_snapshot( myFS, cfg ):
+    """
+    Generate a fileset snapshot.
+    """
+
+    # Load the default configuration into a dictionary.
     snapcfg = {}       
     snapcfg['DEFAULT'] = { k:v for k,v in cfg.items('DEFAULT') }
 
@@ -198,7 +215,9 @@ def fileset_snapshot( myFS, cfg ):
            cfg.get('DEFAULT', 'versions'), 
            cfg.get('DEFAULT', 'active') ) )
 
+    # For all of the filesets in the specified filesystem, check to see if snapshots should occur
     for fileset in myFS.fileset_list():
+        # You can only snapshot independent inode filesets.
         if not myFS.independent_inode_fileset( fileset ):
            logging.info("    Skipping Dependent Inode Fileset: {}::{}.".format(myFS.gpfsdev, fileset))
            continue
@@ -209,6 +228,7 @@ def fileset_snapshot( myFS, cfg ):
         if fileset in cfg.sections():
            fscfg = {}
            fscfg = { k:v for k,v in cfg.items(fileset) }
+
            # Overwrite the defaults with the section specific values 
            mycfg.update( fscfg )
 
@@ -226,9 +246,14 @@ def fileset_snapshot( myFS, cfg ):
            continue
 
         logging.info("    Creating Snapshot: {}::{}".format(myFS.gpfsdev, fileset))
+
+        # Get the fileset snapshot information
         mySnap = Snapshots( myFS.gpfsdev, fileset )
+
+        # Create a new snapshot for the fileset.
         mySnap.snap()
 
+        # If there are old snapshots that need to be removed, purge them.
         for oldSnap in mySnap.get_delete_list( int(mycfg['versions']) ):
             logging.info("    Removing Expired Snapshot: {}::{}::{}".format(myFS.gpfsdev, fileset, oldSnap ))
             if not args.dryrun:
