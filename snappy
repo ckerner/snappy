@@ -176,10 +176,10 @@ def filesystem_snapshot( myFS, cfg ):
     """
     Generate a snapshot for the file system.
     """
-    logging.info("    Snapshot Type: {}   Frequence: {}   Versions: {}   Active: {}".format( 
-           cfg.get('DEFAULT', 'snaptype'), 
-           cfg.get('DEFAULT', 'frequency'), 
-           cfg.get('DEFAULT', 'versions'), 
+    logging.info("    Snapshot Type: {}   Frequence: {}   Versions: {}   Active: {}".format(
+           cfg.get('DEFAULT', 'snaptype'),
+           cfg.get('DEFAULT', 'frequency'),
+           cfg.get('DEFAULT', 'versions'),
            cfg.get('DEFAULT', 'active') ) )
 
     # If snapshots at the filesystem level are not active for this file system, return.
@@ -206,13 +206,13 @@ def fileset_snapshot( myFS, cfg ):
     """
 
     # Load the default configuration into a dictionary.
-    snapcfg = {}       
+    snapcfg = {}
     snapcfg['DEFAULT'] = { k:v for k,v in cfg.items('DEFAULT') }
 
-    logging.info("    Default Snapshot Configuration: {}   Frequence: {}   Versions: {}   Active: {}".format( 
-           cfg.get('DEFAULT', 'snaptype'), 
-           cfg.get('DEFAULT', 'frequency'), 
-           cfg.get('DEFAULT', 'versions'), 
+    logging.info("    Default Snapshot Configuration: {}   Frequence: {}   Versions: {}   Active: {}".format(
+           cfg.get('DEFAULT', 'snaptype'),
+           cfg.get('DEFAULT', 'frequency'),
+           cfg.get('DEFAULT', 'versions'),
            cfg.get('DEFAULT', 'active') ) )
 
     # For all of the filesets in the specified filesystem, check to see if snapshots should occur
@@ -223,7 +223,7 @@ def fileset_snapshot( myFS, cfg ):
            continue
 
         mycfg = snapcfg['DEFAULT'].copy()
-  
+
         # If the fileset has a section in the config file, get its values
         if fileset in cfg.sections():
            fscfg = {}
@@ -237,11 +237,16 @@ def fileset_snapshot( myFS, cfg ):
            logging.info("    Skipping Inependent Inode Fileset: {}::{}.  Snapshots inactive.".format(myFS.gpfsdev, fileset))
            continue
 
+        # If the config is active and number of versions is set to 0, skip the fileset.
+        if mycfg['versions'] == 0:
+           logging.info("    Skipping Inependent Inode Fileset: {}::{}.  0 Versions Specified.".format(myFS.gpfsdev, fileset))
+           continue
+
         if mycfg['frequency'] != SNAP_FREQUENCY[args.snap_freq].lower():
            logging.info("    Inependent Inode Fileset Found: {}::{} . Frequency Mismatch: File: {} Command: {}.".format(
-                  myFS.gpfsdev, 
-                  fileset, 
-                  mycfg['frequency'], 
+                  myFS.gpfsdev,
+                  fileset,
+                  mycfg['frequency'],
                   SNAP_FREQUENCY[args.snap_freq].lower()))
            continue
 
@@ -258,7 +263,7 @@ def fileset_snapshot( myFS, cfg ):
             logging.info("    Removing Expired Snapshot: {}::{}::{}".format(myFS.gpfsdev, fileset, oldSnap ))
             if not args.dryrun:
                mySnap.delsnap( oldSnap )
-          
+
 
 
 
