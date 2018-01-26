@@ -32,7 +32,6 @@ import sys
 import re
 import os
 import shlex
-import sqlite3
 import argparse
 import configparser
 from datetime import datetime , date
@@ -279,6 +278,14 @@ if __name__ == "__main__":
    logging.debug("Getting Cluster Information")
    my_cluster = Cluster()
    logging.debug("Got Cluster Information")
+
+   # Only run snapshots on the cluster manager node
+   if my_cluster.cluster_manager == False:
+      logging.debug("This server is not the cluster manager.")
+      sys.exit()
+   else:
+      logging.debug("This server is the cluster manager.")
+
    for gpfsdev in my_cluster.gpfsdevs:
        logging.debug("Get fs: {}".format(gpfsdev))
        myFS = Filesystem( gpfsdev )
