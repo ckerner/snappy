@@ -280,7 +280,7 @@ if __name__ == "__main__":
    logging.debug("Got Cluster Information")
 
    # Only run snapshots on the cluster manager node
-   if my_cluster.cluster_manager == False:
+   if my_cluster.is_cluster_manager == False:
       logging.debug("This server is not the cluster manager.")
       sys.exit()
    else:
