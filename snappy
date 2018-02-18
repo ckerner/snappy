@@ -276,7 +276,7 @@ if __name__ == "__main__":
    setup_logging()
 
    logging.debug("Getting Cluster Information")
-   my_cluster = Cluster()
+   my_cluster = Cluster( args.debug )
    logging.debug("Got Cluster Information")
 
    # Only run snapshots on the cluster manager node
