@@ -7,7 +7,7 @@ install: make_log_directory snappy
 update: purge_links snappy
 
 snappy:   .FORCE
-	cp -p $(CURDIR)/snappy $(LOCLDIR)/snappy
+	cp -fp $(CURDIR)/snappy $(LOCLDIR)/snappy
 
 make_log_directory:     .FORCE
 	mkdir -p /var/log/snapshots
