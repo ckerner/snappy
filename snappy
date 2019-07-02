@@ -72,6 +72,8 @@ def parse_options():
        description = 'Spectrum Scale Snapshot Wrapper',
        epilog = 'This requires GPFS to be installed in the default location.'
     )
+    parser.add_argument('--audit', dest='audit', action='store_true', default=False,
+                        help='Perform an audit to compare actual snapshots to the configuration.')
     parser.add_argument('--cron', dest='cron', action='store_const', const='h',
                         help='Generate the crontab entries to run all of the snapshots.')
     parser.add_argument('--hourly', dest='snap_freq', action='store_const', const='h',
@@ -199,6 +201,46 @@ def filesystem_snapshot( myFS, cfg ):
            mySnap.delsnap( oldSnap )
 
 
+def fileset_audit( myFS, cfg ):
+    """
+    Audit the snapshot process. 
+    """
+
+    # Load the default configuration into a dictionary.
+    snapcfg = {}
+    snapcfg['DEFAULT'] = { k:v for k,v in cfg.items('DEFAULT') }
+
+    # Print the header line.
+    print("{0:<8s}  {1:<40s}  {2:<10s}  {3:>10s}".format('Device', 'Fileset', 'Configured', 'Actual'))
+
+    # For all of the filesets in the specified filesystem, check to see if snapshots should occur
+    for fileset in myFS.fileset_list():
+        # You can only snapshot independent inode filesets.
+        if not myFS.independent_inode_fileset( fileset ):
+           print("{0:<8s}  {1:<40s}  {2:>10s}  {3:>10s}".format(myFS.gpfsdev, fileset, 'Dependent', 'N/A'))
+           continue
+
+        mycfg = snapcfg['DEFAULT'].copy()
+
+        # If the fileset has a section in the config file, get its values
+        if fileset in cfg.sections():
+           fscfg = {}
+           fscfg = { k:v for k,v in cfg.items(fileset) }
+
+           # Overwrite the defaults with the section specific values
+           mycfg.update( fscfg )
+
+        # Get the fileset snapshot information
+        mySnap = Snapshots( myFS.gpfsdev, fileset )
+
+        # If the config is not marked active, skip the fileset
+        if mycfg['active'] != 'True':
+           print("{0:<8s}  {1:<40s}  {2:>10s}  {3:>10d}".format(myFS.gpfsdev, fileset, 'Inactive', int(mySnap.snap_count)))
+           continue
+
+        print("{0:<8s}  {1:<40s}  {2:>10d}  {3:>10d}".format( myFS.gpfsdev, fileset, int(mycfg['versions']), int(mySnap.snap_count)))
+
+
 def fileset_snapshot( myFS, cfg ):
     """
     Generate a fileset snapshot.
@@ -289,7 +331,11 @@ if __name__ == "__main__":
    for gpfsdev in my_cluster.gpfsdevs:
        logging.debug("Get fs: {}".format(gpfsdev))
        myFS = Filesystem( gpfsdev )
-       logging.info("Starting Snapshot: Device: {}  Mount point: {}".format(gpfsdev, myFS.filesys['defaultMountPoint'] ))
+
+       if args.audit:
+          print("Starting Audit: Device: {}  Mount point: {}\n".format(gpfsdev, myFS.filesys['defaultMountPoint'] ))
+       else:
+          logging.info("Starting Snapshot: Device: {}  Mount point: {}".format(gpfsdev, myFS.filesys['defaultMountPoint'] ))
        cfgfile = myFS.filesys['defaultMountPoint'] + '/.snapcfg'
 
        if does_file_exist( cfgfile ) == False:
@@ -302,11 +348,17 @@ if __name__ == "__main__":
        if cfg.get('DEFAULT', 'snaptype') == 'Filesystem':
           filesystem_snapshot( myFS, cfg )
        elif cfg.get('DEFAULT', 'snaptype') == 'Fileset':
-          fileset_snapshot( myFS, cfg )
+          if args.audit:
+             fileset_audit( myFS, cfg )
+          else:
+             fileset_snapshot( myFS, cfg )
        else:
-          logging.info("   Snapshot Error:  Invalid Snapshot Type: {}".format( cfg.get('DEFAULT', 'snaptype') ) )
+             logging.info("   Snapshot Error:  Invalid Snapshot Type: {}".format( cfg.get('DEFAULT', 'snaptype') ) )
 
-       logging.info("Snapshot Complete: Device: {}  Mount point: {}".format(gpfsdev, myFS.filesys['defaultMountPoint'] ))
+       if args.audit:
+          print("Audit Complete: Device: {}  Mount point: {}\n".format(gpfsdev, myFS.filesys['defaultMountPoint'] ))
+       else:
+          logging.info("Snapshot Complete: Device: {}  Mount point: {}".format(gpfsdev, myFS.filesys['defaultMountPoint'] ))
 
        try:
           del myFS
