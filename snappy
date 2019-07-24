@@ -319,9 +319,14 @@ def generate_report( my_cluster ):
 
         sections = list( cfg.sections() )
 
-        print("{:11s}  {:10s}  {:30s}  {:6s}  {:9s}  {:>8s}".format( 'GPFS Device', 'Snap Type', 'Fileset', 'Active', 'Frequency', 'Versions' ) )
-                                              
-        print("{:11s}  {:10s}  {:30s}  {:6s}  {:9s}  {:>8s}".format( gpfsdev, 
+        print("{:11s}  {:10s}  {:40s}  {:6s}  {:9s}  {:>8s}".format( 'GPFS Device',
+           'Snap Type',
+           'Fileset',
+           'Active',
+           'Frequency',
+           'Versions' ) )
+
+        print("{:11s}  {:10s}  {:40s}  {:6s}  {:9s}  {:>8s}".format( gpfsdev,
            cfg.get( 'DEFAULT', 'snaptype' ),
            'DEFAULT',
            cfg.get( 'DEFAULT', 'active' ),
@@ -331,9 +336,9 @@ def generate_report( my_cluster ):
         for section in sorted( sections ):
             if section == 'DEFAULT':
                continue
-            print("{:11s}  {:10s}  {:30s}  {:6s}  {:9s}  {:>8s}".format( gpfsdev, 
+            print("{:11s}  {:10s}  {:40s}  {:6s}  {:9s}  {:>8s}".format( gpfsdev,
                cfg.get( section, 'snaptype' ),
-               section, 
+               section,
                cfg.get( section, 'active' ),
                cfg.get( section, 'frequency' ),
                cfg.get( section, 'versions' ) ) )
