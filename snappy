@@ -74,6 +74,8 @@ def parse_options():
     )
     parser.add_argument('--audit', dest='audit', action='store_true', default=False,
                         help='Perform an audit to compare actual snapshots to the configuration.')
+    parser.add_argument('--report', dest='report', action='store_true', default=False,
+                        help='Generate a report about the current snapshot configuration.')
     parser.add_argument('--cron', dest='cron', action='store_const', const='h',
                         help='Generate the crontab entries to run all of the snapshots.')
     parser.add_argument('--hourly', dest='snap_freq', action='store_const', const='h',
@@ -305,8 +307,36 @@ def fileset_snapshot( myFS, cfg ):
             if not args.dryrun:
                mySnap.delsnap( oldSnap )
 
+def generate_report( my_cluster ):
+    for gpfsdev in my_cluster.gpfsdevs:
+        logging.debug("Get fs for report: {}".format(gpfsdev))
+        myFS = Filesystem( gpfsdev )
 
+        cfgfile = myFS.filesys['defaultMountPoint'] + '/.snapcfg'
 
+        cfg = configparser.ConfigParser()
+        cfg.read( cfgfile )
+
+        sections = list( cfg.sections() )
+
+        print("{:11s}  {:10s}  {:30s}  {:6s}  {:9s}  {:>8s}".format( 'GPFS Device', 'Snap Type', 'Fileset', 'Active', 'Frequency', 'Versions' ) )
+                                              
+        print("{:11s}  {:10s}  {:30s}  {:6s}  {:9s}  {:>8s}".format( gpfsdev, 
+           cfg.get( 'DEFAULT', 'snaptype' ),
+           'DEFAULT',
+           cfg.get( 'DEFAULT', 'active' ),
+           cfg.get( 'DEFAULT', 'frequency' ),
+           cfg.get( 'DEFAULT', 'versions' ) ) )
+
+        for section in sorted( sections ):
+            if section == 'DEFAULT':
+               continue
+            print("{:11s}  {:10s}  {:30s}  {:6s}  {:9s}  {:>8s}".format( gpfsdev, 
+               cfg.get( section, 'snaptype' ),
+               section, 
+               cfg.get( section, 'active' ),
+               cfg.get( section, 'frequency' ),
+               cfg.get( section, 'versions' ) ) )
 
 if __name__ == "__main__":
    args = parse_options()
@@ -320,6 +350,10 @@ if __name__ == "__main__":
    logging.debug("Getting Cluster Information")
    my_cluster = Cluster( args.debug )
    logging.debug("Got Cluster Information")
+
+   if args.report:
+      generate_report( my_cluster )
+      sys.exit()
 
    # Only run snapshots on the cluster manager node
    if my_cluster.is_cluster_manager == False:
