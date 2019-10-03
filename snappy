@@ -315,7 +315,12 @@ def generate_report( my_cluster ):
         cfgfile = myFS.filesys['defaultMountPoint'] + '/.snapcfg'
 
         cfg = configparser.ConfigParser()
-        cfg.read( cfgfile )
+        try:
+           cfg.read( cfgfile )
+        except Exception as e:
+           print("There is an error in the configuration file:")
+           print("Error {:s}".format( e ) )
+           sys.exit(100)
 
         sections = list( cfg.sections() )
 
@@ -382,7 +387,12 @@ if __name__ == "__main__":
           create_default_configuration( cfgfile )
 
        cfg = configparser.ConfigParser()
-       cfg.read( cfgfile )
+       try:
+          cfg.read( cfgfile )
+       except Exception as e:
+          print("There is an error in the configuration file:")
+          print("Error {:s}".format( e ) )
+          sys.exit(100)
 
        if cfg.get('DEFAULT', 'snaptype') == 'Filesystem':
           filesystem_snapshot( myFS, cfg )
