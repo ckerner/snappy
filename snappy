@@ -33,9 +33,15 @@ import re
 import os
 import shlex
 import argparse
-import configparser
 from datetime import datetime , date
 from pprint import pprint
+
+try:
+   import configparser
+except:
+   print("ERROR: Requires the configparser module to be installed.")
+   sys.exit(100)
+
 
 
 LOG_FILENAME = { 'h' : '/var/log/snapshots/hourly.log',
