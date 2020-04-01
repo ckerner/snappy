@@ -25,7 +25,8 @@
 
 
 from __future__ import print_function
-from ssapi import *
+#from ssapi import *
+import ssapi
 from subprocess import Popen, PIPE
 import logging
 import sys
